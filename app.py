@@ -8,6 +8,9 @@ from playwright.async_api import async_playwright
 
 app = FastAPI()
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INDEX_PATH = os.path.join(BASE_DIR, "static", "index.html")
+
 DESKTOP_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
@@ -24,9 +27,18 @@ async def startup():
     pw = await async_playwright().start()
     browser = await pw.chromium.launch(
         headless=True,
-        args=["--no-sandbox", "--disable-dev-shm-usage"],
+        args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-blink-features=AutomationControlled",
+        ],
     )
     context = await browser.new_context(user_agent=DESKTOP_UA, viewport=VIEWPORT)
+    # Masque les indices classiques de navigateur automatisé (navigator.webdriver
+    # notamment), que reCAPTCHA/hCaptcha utilisent pour bloquer la validation.
+    await context.add_init_script(
+        "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+    )
     page = await context.new_page()
     await page.goto(START_URL)
 
@@ -44,7 +56,7 @@ async def shutdown():
 
 @app.get("/")
 async def index():
-    return FileResponse("static/index.html")
+    return FileResponse(INDEX_PATH)
 
 
 @app.websocket("/ws")
