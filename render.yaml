@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: browser-in-browser
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: START_URL
+        value: https://www.google.com
+    healthCheckPath: /
