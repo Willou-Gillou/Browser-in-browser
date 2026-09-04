@@ -37,12 +37,36 @@
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
   }
 
-  // Le viewport distant est fixe (1280x720), on convertit les coordonnées
-  // de l'écran affiché vers ce repère.
-  function toPageCoords(clientX, clientY) {
+  // Le viewport distant est fixe (1280x720). Avec object-fit: contain,
+  // l'élément <img> peut avoir des bandes noires (letterboxing) si la
+  // fenêtre n'a pas exactement ce ratio : il faut calculer la zone réelle
+  // de contenu affiché, pas juste la box de l'élément.
+  const REMOTE_W = 1280;
+  const REMOTE_H = 720;
+
+  function getContentRect() {
     const rect = img.getBoundingClientRect();
-    const x = ((clientX - rect.left) / rect.width) * 1280;
-    const y = ((clientY - rect.top) / rect.height) * 720;
+    const containerRatio = rect.width / rect.height;
+    const contentRatio = REMOTE_W / REMOTE_H;
+    let renderW, renderH, offsetX, offsetY;
+    if (containerRatio > contentRatio) {
+      renderH = rect.height;
+      renderW = renderH * contentRatio;
+      offsetX = (rect.width - renderW) / 2;
+      offsetY = 0;
+    } else {
+      renderW = rect.width;
+      renderH = renderW / contentRatio;
+      offsetX = 0;
+      offsetY = (rect.height - renderH) / 2;
+    }
+    return { left: rect.left + offsetX, top: rect.top + offsetY, width: renderW, height: renderH };
+  }
+
+  function toPageCoords(clientX, clientY) {
+    const cr = getContentRect();
+    const x = ((clientX - cr.left) / cr.width) * REMOTE_W;
+    const y = ((clientY - cr.top) / cr.height) * REMOTE_H;
     return { x, y };
   }
 
