@@ -24,14 +24,21 @@
 <script>
   const img = document.getElementById("screen");
   const proto = location.protocol === "https:" ? "wss://" : "ws://";
-  const ws = new WebSocket(proto + location.host + "/ws");
+  let ws;
 
-  ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
-    if (msg.type === "frame") {
-      img.src = "data:image/jpeg;base64," + msg.data;
-    }
-  };
+  function connect() {
+    ws = new WebSocket(proto + location.host + "/ws");
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "frame") {
+        img.src = "data:image/jpeg;base64," + msg.data;
+      }
+    };
+    ws.onclose = () => {
+      setTimeout(connect, 1000);
+    };
+  }
+  connect();
 
   function send(obj) {
     if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
