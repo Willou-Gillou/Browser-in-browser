@@ -88,7 +88,12 @@ async def ws_endpoint(websocket: WebSocket):
     async def receiver():
         while True:
             raw = await websocket.receive_text()
-            await handle_input(page, json.loads(raw))
+            try:
+                await handle_input(page, cdp, json.loads(raw))
+            except Exception as e:
+                # Une erreur sur une action (ex: goto qui time-out) ne doit
+                # jamais couper toute la session WebSocket.
+                print(f"handle_input error: {e}")
 
     sender_task = asyncio.create_task(sender())
     try:
@@ -104,7 +109,7 @@ async def ws_endpoint(websocket: WebSocket):
             pass
 
 
-async def handle_input(page, msg: dict):
+async def handle_input(page, cdp, msg: dict):
     t = msg.get("type")
     if t == "mousemove":
         await page.mouse.move(msg["x"], msg["y"])
@@ -120,7 +125,25 @@ async def handle_input(page, msg: dict):
     elif t == "keyup":
         await page.keyboard.up(msg["key"])
     elif t == "goto":
-        await page.goto(msg["url"])
+        try:
+            await page.goto(msg["url"], timeout=15000, wait_until="domcontentloaded")
+        finally:
+            # Chrome arrête parfois le screencast lors d'une navigation :
+            # on le relance systématiquement pour ne pas rester figé sur
+            # la dernière frame de l'ancienne page.
+            try:
+                await cdp.send(
+                    "Page.startScreencast",
+                    {
+                        "format": "jpeg",
+                        "quality": 80,
+                        "maxWidth": VIEWPORT["width"],
+                        "maxHeight": VIEWPORT["height"],
+                        "everyNthFrame": 1,
+                    },
+                )
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
